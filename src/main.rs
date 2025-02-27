@@ -44,13 +44,42 @@ impl Widget for Island {
     }
 }
 
-#[derive(Default)]
-struct HashiBoard {
-    islands: Vec<Island>,
-    bridges: Vec<(Island, Island)>
+#[derive(Debug, Default, Clone, Copy)]
+enum BridgeCount {
+    #[default]
+    ZERO = 0,
+    ONE = 1,
+    TWO = 2,
 }
 
-impl HashiBoard {
+#[derive(Debug, Clone, Copy)]
+
+struct Bridge<'a> {
+    from: &'a Island,
+    to: &'a Island,
+    count: BridgeCount
+}
+
+
+impl Widget for Bridge<'_> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        let (_, response) = ui.allocate_at_least(Vec2 { x: ISLAND_SIZE*2.0, y: ISLAND_SIZE*2.0}, Sense::click());
+        
+        let painter = ui.painter();
+
+        painter.line_segment( [self.from.position.into(), self.to.position.into()], Stroke::new(1.0, Color32::BLACK));
+
+        response
+    }
+}
+
+#[derive(Default)]
+struct HashiBoard<'a> {
+    islands: Vec<Island>,
+    bridges: Vec<Bridge<'a>>
+}
+
+impl HashiBoard<'_> {
     fn add_island(&mut self, position: Position, required_bridges: usize) {
         todo!();
     }
@@ -60,21 +89,28 @@ impl HashiBoard {
     }
 }
 
-impl eframe::App for HashiBoard { 
+impl eframe::App for HashiBoard<'_> { 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            for bridge in &self.bridges {
+                ui.add(*bridge);
+            }   
             for island in &self.islands {
                 ui.add(*island);
-            }           
+            }                 
         });
     }
 }
 
 fn main() -> eframe::Result {
-    let hashi_board = HashiBoard {
-        islands: Vec::from([
+    let islands = [
             Island {
                 position: Position { x: 0, y: 0 },
+                required_bridges: 1,
+                connected_bridges: 0,
+            },
+            Island {
+                position: Position { x: 0, y: 1 },
                 required_bridges: 2,
                 connected_bridges: 0,
             },
@@ -83,13 +119,18 @@ fn main() -> eframe::Result {
                 required_bridges: 1,
                 connected_bridges: 0,
             },
-            Island {
-                position: Position { x: 0, y: 1 },
-                required_bridges: 1,
-                connected_bridges: 0,
-            },
-        ]),
-        bridges: Vec::new(),
+        ];
+    let bridges= [
+        Bridge {
+            from: &islands[0], to: &islands[1], count: BridgeCount::ONE
+        },
+        Bridge {
+            from: &islands[1], to: &islands[2], count: BridgeCount::ONE
+        },
+    ];
+    let hashi_board = HashiBoard {
+        islands: Vec::from(islands),
+        bridges: Vec::from(bridges)
     };
 
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
