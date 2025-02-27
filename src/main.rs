@@ -1,27 +1,53 @@
-use std::collections::{HashMap, HashSet};
-
 use eframe::{egui::{
-    self, pos2, Color32, Label, Sense, Shape, Stroke, Vec2 
+    self, Color32, Label, Pos2, Sense, Shape, Stroke, Vec2, Widget 
 }, epaint::TextShape};
 
-const ISLAND_SIZE: f32 = 50.0;
+const ISLAND_SIZE: f32 = 8.0;
+const ISLAND_SPACING: f32 = 50.0;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 struct Position {
     x: usize,
     y: usize,
 }
 
-#[derive(Debug, Default)]
+impl Into<Pos2> for Position {
+    fn into(self) -> Pos2 {
+        Pos2::new(self.x as f32 * ISLAND_SPACING + ISLAND_SPACING, self.y as f32 * ISLAND_SPACING + ISLAND_SPACING)
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
 struct Island {
+    position: Position,
     required_bridges: usize,
     connected_bridges: usize,
+}
+ 
+impl Widget for Island {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        let label = Label::new(self.required_bridges.to_string()).sense(Sense::click());
+        let (_, galley, _) = label.layout_in_ui(ui);
+        let (_, response) = ui.allocate_at_least(Vec2 { x: ISLAND_SIZE*2.0, y: ISLAND_SIZE*2.0}, Sense::click());
+        
+        let painter = ui.painter();
+        let position = self.position.into();
+
+        let text_pos = position - Vec2::new(galley.size().x / 2.0, galley.size().y / 2.0);
+            
+        painter.extend(vec![
+            Shape::circle_stroke(position, ISLAND_SIZE, Stroke::new(1.0, Color32::BLACK)),
+            Shape::Text(TextShape::new(text_pos, galley, Color32::BLACK))
+        ]);
+
+        response
+    }
 }
 
 #[derive(Default)]
 struct HashiBoard {
-    islands: HashMap<Position, Island>,
-    bridges: HashMap<Position, HashSet<Position>>,
+    islands: Vec<Island>,
+    bridges: Vec<(Island, Island)>
 }
 
 impl HashiBoard {
@@ -37,66 +63,33 @@ impl HashiBoard {
 impl eframe::App for HashiBoard { 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let (response, painter) =
-            ui.allocate_painter(Vec2::new(ui.available_width(), 300.0), Sense::hover());
-
-            let mut control_points =  [
-                pos2(50.0, 50.0),
-                pos2(100.0, 100.0),
-                pos2(50.0, 100.0),
-            ];
-            let control_point_radius = 8.0;
-
-            let control_point_shapes: Vec<Shape> = 
-            control_points
-            .iter_mut()
-            .map(| point| {
-
-                let label = Label::new("1").sense(Sense::click());
-                let (_, galley, _) = label.layout_in_ui(ui);
-                let text_pos = *point - Vec2::new(galley.size().x / 2.0, galley.size().y / 2.0);
-
-                vec![
-                    Shape::circle_stroke(*point, control_point_radius, Stroke::new(1.0, Color32::BLACK)),
-                    Shape::Text(TextShape::new(text_pos, galley, Color32::BLACK))
-                ]
-            })
-            .flatten()
-            .collect();
-
-            painter.extend(control_point_shapes);
-
-            response
+            for island in &self.islands {
+                ui.add(*island);
+            }           
         });
     }
 }
 
 fn main() -> eframe::Result {
     let hashi_board = HashiBoard {
-        islands: HashMap::from([
-            (
-                Position { x: 0, y: 0 },
-                Island {
-                    required_bridges: 2,
-                    connected_bridges: 0,
-                },
-            ),
-            (
-                Position { x: 2, y: 0 },
-                Island {
-                    required_bridges: 1,
-                    connected_bridges: 0,
-                },
-            ),
-            (
-                Position { x: 0, y: 2 },
-                Island {
-                    required_bridges: 1,
-                    connected_bridges: 0,
-                },
-            ),
+        islands: Vec::from([
+            Island {
+                position: Position { x: 0, y: 0 },
+                required_bridges: 2,
+                connected_bridges: 0,
+            },
+            Island {
+                position:Position { x: 1, y: 1 },
+                required_bridges: 1,
+                connected_bridges: 0,
+            },
+            Island {
+                position: Position { x: 0, y: 1 },
+                required_bridges: 1,
+                connected_bridges: 0,
+            },
         ]),
-        bridges: HashMap::new(),
+        bridges: Vec::new(),
     };
 
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
@@ -105,8 +98,8 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "My egui App",
+        "Hashi",
         options,
-        Box::new(|cc| Ok(Box::from(hashi_board))),
+        Box::new(|_| Ok(Box::from(hashi_board))),
     )
 }
