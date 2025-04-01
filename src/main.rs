@@ -1,3 +1,8 @@
+use std::{
+    num,
+    ops::{Add, Sub},
+};
+
 use eframe::{
     egui::{self, Color32, Label, Pos2, Sense, Shape, Stroke, Vec2, Widget},
     epaint::TextShape,
@@ -5,6 +10,7 @@ use eframe::{
 
 const ISLAND_SIZE: f32 = 8.0;
 const ISLAND_SPACING: f32 = 50.0;
+const BRIDGE_OFFSET: f32 = ISLAND_SIZE / 2.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 struct Position {
@@ -18,6 +24,28 @@ impl Into<Pos2> for Position {
             self.x as f32 * ISLAND_SPACING + ISLAND_SPACING,
             self.y as f32 * ISLAND_SPACING + ISLAND_SPACING,
         )
+    }
+}
+
+impl Add for Position {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+
+impl Sub for Position {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x.abs_diff(rhs.x),
+            y: self.y.abs_diff(rhs.y),
+        }
     }
 }
 
@@ -64,11 +92,41 @@ enum BridgeCount {
 }
 
 #[derive(Debug, Clone, Copy)]
+enum Direction {
+    Vertical,
+    Horizontal,
+}
 
+#[derive(Debug, Clone, Copy)]
 struct Bridge<'a> {
     from: &'a Island,
     to: &'a Island,
     count: BridgeCount,
+    direction: Direction,
+}
+
+#[derive(Debug, Clone)]
+struct BridgeDirectionError;
+
+impl Bridge<'_> {
+    fn new<'a>(
+        from: &'a Island,
+        to: &'a Island,
+        count: BridgeCount,
+    ) -> Result<Bridge<'a>, BridgeDirectionError> {
+        let direction = match to.position - from.position {
+            Position { x: 0, y: _ } => Direction::Vertical,
+            Position { x: _, y: 0 } => Direction::Horizontal,
+            Position { .. } => return Err(BridgeDirectionError),
+        };
+
+        Ok(Bridge {
+            from,
+            to,
+            count,
+            direction,
+        })
+    }
 }
 
 impl Widget for Bridge<'_> {
@@ -83,10 +141,25 @@ impl Widget for Bridge<'_> {
 
         let painter = ui.painter();
 
-        painter.line_segment(
-            [self.from.position.into(), self.to.position.into()],
-            Stroke::new(1.0, Color32::BLACK),
-        );
+        match self.count {
+            BridgeCount::Zero => (),
+            BridgeCount::One => {
+                painter.line_segment(
+                    [self.from.position.into(), self.to.position.into()],
+                    Stroke::new(1.0, Color32::BLACK),
+                );
+            }
+            BridgeCount::Two => {
+                painter.line_segment(
+                    [self.from.position.into(), self.to.position.into()],
+                    Stroke::new(1.0, Color32::BLACK),
+                );
+                painter.line_segment(
+                    [self.from.position.into(), self.to.position.into()],
+                    Stroke::new(1.0, Color32::BLACK),
+                );
+            }
+        }
 
         response
     }
@@ -130,27 +203,26 @@ fn main() -> eframe::Result {
         },
         Island {
             position: Position { x: 0, y: 1 },
-            required_bridges: 2,
-            connected_bridges: 2,
+            required_bridges: 4,
+            connected_bridges: 4,
         },
         Island {
             position: Position { x: 1, y: 1 },
             required_bridges: 1,
             connected_bridges: 1,
         },
+        Island {
+            position: Position { x: 0, y: 2 },
+            required_bridges: 1,
+            connected_bridges: 1,
+        },
     ];
     let bridges = [
-        Bridge {
-            from: &islands[0],
-            to: &islands[1],
-            count: BridgeCount::One,
-        },
-        Bridge {
-            from: &islands[1],
-            to: &islands[2],
-            count: BridgeCount::One,
-        },
-    ];
+        Bridge::new(&islands[0], &islands[1], BridgeCount::One),
+        Bridge::new(&islands[1], &islands[2], BridgeCount::One),
+        Bridge::new(&islands[1], &islands[3], BridgeCount::Two),
+    ]
+    .map(|result| result.unwrap());
     let hashi_board = HashiBoard {
         islands: Vec::from(islands),
         bridges: Vec::from(bridges),
