@@ -1,7 +1,4 @@
-use std::{
-    num,
-    ops::{Add, Sub},
-};
+use std::ops::Add;
 
 use eframe::{
     egui::{self, Color32, Label, Pos2, Sense, Shape, Stroke, Vec2, Widget},
@@ -10,7 +7,7 @@ use eframe::{
 
 const ISLAND_SIZE: f32 = 8.0;
 const ISLAND_SPACING: f32 = 50.0;
-const BRIDGE_OFFSET: f32 = ISLAND_SIZE / 2.0;
+const BRIDGE_OFFSET: f32 = ISLAND_SIZE / 4.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 struct Position {
@@ -18,11 +15,11 @@ struct Position {
     y: usize,
 }
 
-impl Into<Pos2> for Position {
-    fn into(self) -> Pos2 {
+impl From<Position> for Pos2 {
+    fn from(position: Position) -> Self {
         Pos2::new(
-            self.x as f32 * ISLAND_SPACING + ISLAND_SPACING,
-            self.y as f32 * ISLAND_SPACING + ISLAND_SPACING,
+            position.x as f32 * ISLAND_SPACING + ISLAND_SPACING,
+            position.y as f32 * ISLAND_SPACING + ISLAND_SPACING,
         )
     }
 }
@@ -34,17 +31,6 @@ impl Add for Position {
         Self {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
-        }
-    }
-}
-
-impl Sub for Position {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x.abs_diff(rhs.x),
-            y: self.y.abs_diff(rhs.y),
         }
     }
 }
@@ -114,10 +100,12 @@ impl Bridge<'_> {
         to: &'a Island,
         count: BridgeCount,
     ) -> Result<Bridge<'a>, BridgeDirectionError> {
-        let direction = match to.position - from.position {
-            Position { x: 0, y: _ } => Direction::Vertical,
-            Position { x: _, y: 0 } => Direction::Horizontal,
-            Position { .. } => return Err(BridgeDirectionError),
+        let direction = match <Position as Into<Pos2>>::into(to.position)
+            - <Position as Into<Pos2>>::into(from.position)
+        {
+            Vec2 { x: 0.0, y: _ } => Direction::Vertical,
+            Vec2 { x: _, y: 0.0 } => Direction::Horizontal,
+            Vec2 { .. } => return Err(BridgeDirectionError),
         };
 
         Ok(Bridge {
@@ -141,21 +129,42 @@ impl Widget for Bridge<'_> {
 
         let painter = ui.painter();
 
-        match self.count {
-            BridgeCount::Zero => (),
-            BridgeCount::One => {
+        let points: [Pos2; 2] = [self.from.position.into(), self.to.position.into()];
+
+        match (self.count, self.direction) {
+            (BridgeCount::Zero, _) => (),
+            (BridgeCount::One, _) => {
+                painter.line_segment(points, Stroke::new(1.0, Color32::BLACK));
+            }
+            (BridgeCount::Two, Direction::Horizontal) => {
                 painter.line_segment(
-                    [self.from.position.into(), self.to.position.into()],
+                    points.map(|mut point| {
+                        point.y += BRIDGE_OFFSET;
+                        point
+                    }),
+                    Stroke::new(1.0, Color32::BLACK),
+                );
+                painter.line_segment(
+                    points.map(|mut point| {
+                        point.y -= BRIDGE_OFFSET;
+                        point
+                    }),
                     Stroke::new(1.0, Color32::BLACK),
                 );
             }
-            BridgeCount::Two => {
+            (BridgeCount::Two, Direction::Vertical) => {
                 painter.line_segment(
-                    [self.from.position.into(), self.to.position.into()],
+                    points.map(|mut point| {
+                        point.x += BRIDGE_OFFSET;
+                        point
+                    }),
                     Stroke::new(1.0, Color32::BLACK),
                 );
                 painter.line_segment(
-                    [self.from.position.into(), self.to.position.into()],
+                    points.map(|mut point| {
+                        point.x -= BRIDGE_OFFSET;
+                        point
+                    }),
                     Stroke::new(1.0, Color32::BLACK),
                 );
             }
@@ -213,14 +222,20 @@ fn main() -> eframe::Result {
         },
         Island {
             position: Position { x: 0, y: 2 },
-            required_bridges: 1,
-            connected_bridges: 1,
+            required_bridges: 4,
+            connected_bridges: 4,
+        },
+        Island {
+            position: Position { x: 1, y: 2 },
+            required_bridges: 2,
+            connected_bridges: 2,
         },
     ];
     let bridges = [
         Bridge::new(&islands[0], &islands[1], BridgeCount::One),
         Bridge::new(&islands[1], &islands[2], BridgeCount::One),
         Bridge::new(&islands[1], &islands[3], BridgeCount::Two),
+        Bridge::new(&islands[3], &islands[4], BridgeCount::Two),
     ]
     .map(|result| result.unwrap());
     let hashi_board = HashiBoard {
