@@ -1,10 +1,10 @@
-use eframe::egui::{self, Color32, Pos2, Sense, Stroke, Vec2, Widget};
+use eframe::egui::{self, Pos2, Rect, Sense, Vec2, Widget};
 
 use crate::island::{Island, Position, ISLAND_SIZE};
 
 const BRIDGE_OFFSET: f32 = ISLAND_SIZE / 4.0;
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, Hash)]
 pub enum BridgeCount {
     #[default]
     Zero = 0,
@@ -12,17 +12,27 @@ pub enum BridgeCount {
     Two = 2,
 }
 
-#[derive(Debug, Clone, Copy)]
+impl BridgeCount {
+    fn next(self) -> Self {
+        match self {
+            BridgeCount::Zero => BridgeCount::One,
+            BridgeCount::One => BridgeCount::Two,
+            BridgeCount::Two => BridgeCount::Zero,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Hash)]
 pub enum Direction {
     Vertical,
     Horizontal,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Hash)]
 pub struct Bridge<'a> {
     pub from: &'a Island,
     pub to: &'a Island,
-    pub count: BridgeCount,
+    pub count: &'a mut BridgeCount,
     direction: Direction,
 }
 
@@ -33,7 +43,7 @@ impl Bridge<'_> {
     pub fn new<'a>(
         from: &'a Island,
         to: &'a Island,
-        count: BridgeCount,
+        count: &'a mut BridgeCount,
     ) -> Result<Bridge<'a>, BridgeDirectionError> {
         let direction = match <Position as Into<Pos2>>::into(to.position)
             - <Position as Into<Pos2>>::into(from.position)
@@ -52,7 +62,7 @@ impl Bridge<'_> {
     }
 }
 
-impl Widget for Bridge<'_> {
+impl Widget for &mut Bridge<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let (_, response) = ui.allocate_at_least(
             Vec2 {
@@ -66,10 +76,20 @@ impl Widget for Bridge<'_> {
 
         let points: [Pos2; 2] = [self.from.position.into(), self.to.position.into()];
 
-        match (self.count, self.direction) {
+        let point_rect = Rect::from_two_pos(points[0], points[1]).expand(ISLAND_SIZE);
+        let point_id = response.id.with(&self);
+        let point_response = ui.interact(point_rect, point_id, Sense::drag());
+
+        let stroke = ui.style().interact(&point_response).fg_stroke;
+
+        if point_response.drag_stopped() {
+            *self.count = self.count.next();
+        }
+
+        match (&self.count, self.direction) {
             (BridgeCount::Zero, _) => (),
             (BridgeCount::One, _) => {
-                painter.line_segment(points, Stroke::new(1.0, Color32::BLACK));
+                painter.line_segment(points, stroke);
             }
             (BridgeCount::Two, Direction::Horizontal) => {
                 painter.line_segment(
@@ -77,14 +97,14 @@ impl Widget for Bridge<'_> {
                         point.y += BRIDGE_OFFSET;
                         point
                     }),
-                    Stroke::new(1.0, Color32::BLACK),
+                    stroke,
                 );
                 painter.line_segment(
                     points.map(|mut point| {
                         point.y -= BRIDGE_OFFSET;
                         point
                     }),
-                    Stroke::new(1.0, Color32::BLACK),
+                    stroke,
                 );
             }
             (BridgeCount::Two, Direction::Vertical) => {
@@ -93,14 +113,14 @@ impl Widget for Bridge<'_> {
                         point.x += BRIDGE_OFFSET;
                         point
                     }),
-                    Stroke::new(1.0, Color32::BLACK),
+                    stroke,
                 );
                 painter.line_segment(
                     points.map(|mut point| {
                         point.x -= BRIDGE_OFFSET;
                         point
                     }),
-                    Stroke::new(1.0, Color32::BLACK),
+                    stroke,
                 );
             }
         }

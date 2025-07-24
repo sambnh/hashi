@@ -24,8 +24,8 @@ impl HashiBoard<'_> {
 impl eframe::App for HashiBoard<'_> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            for bridge in &self.bridges {
-                ui.add(*bridge);
+            for bridge in &mut self.bridges {
+                ui.add(bridge);
             }
             for island in &self.islands {
                 ui.add(*island);
