@@ -32,7 +32,7 @@ pub enum Direction {
 pub struct Bridge<'a> {
     pub from: &'a Island,
     pub to: &'a Island,
-    pub count: &'a mut BridgeCount,
+    pub count: BridgeCount,
     direction: Direction,
 }
 
@@ -43,7 +43,7 @@ impl Bridge<'_> {
     pub fn new<'a>(
         from: &'a Island,
         to: &'a Island,
-        count: &'a mut BridgeCount,
+        count: BridgeCount,
     ) -> Result<Bridge<'a>, BridgeDirectionError> {
         let direction = match <Position as Into<Pos2>>::into(to.position)
             - <Position as Into<Pos2>>::into(from.position)
@@ -83,7 +83,7 @@ impl Widget for &mut Bridge<'_> {
         let stroke = ui.style().interact(&point_response).fg_stroke;
 
         if point_response.drag_stopped() {
-            *self.count = self.count.next();
+            self.count = self.count.next();
         }
 
         match (&self.count, self.direction) {

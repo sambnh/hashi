@@ -30,16 +30,11 @@ fn main() -> eframe::Result {
             required_bridges: 2,
         },
     ];
-    // TODO: Come up with a better way to handle these mutable references.
-    let mut bridge_count0 = BridgeCount::One;
-    let mut bridge_count1 = BridgeCount::One;
-    let mut bridge_count2 = BridgeCount::Two;
-    let mut bridge_count3 = BridgeCount::Two;
     let bridges = [
-        Bridge::new(&islands[0], &islands[1], &mut bridge_count0),
-        Bridge::new(&islands[1], &islands[2], &mut bridge_count1),
-        Bridge::new(&islands[1], &islands[3], &mut bridge_count2),
-        Bridge::new(&islands[3], &islands[4], &mut bridge_count3),
+        Bridge::new(&islands[0], &islands[1], BridgeCount::One),
+        Bridge::new(&islands[1], &islands[2], BridgeCount::One),
+        Bridge::new(&islands[1], &islands[3], BridgeCount::Two),
+        Bridge::new(&islands[3], &islands[4], BridgeCount::Two),
     ]
     .map(|result| result.unwrap());
     let hashi_board = HashiBoard {
